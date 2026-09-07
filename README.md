@@ -92,7 +92,7 @@ These are **not optional** for the workflow — each one is required by a specif
 
 ### MCP credentials (`.env` keys)
 
-`.mcp.json` (Claude Code) and `opencode.jsonc` ship with `${VAR}` / `{env:VAR}` placeholders that read from `.env`. Eight keys are required for the 7 canonical MCPs:
+`.mcp.json` and `opencode.jsonc` are **gitignored** (generated per session by the MCP Builder). The MCP catalog (`.mcp.catalog.json`) lists all available servers. To generate the active config, run `bun run mcps-kit <profile>` (e.g. `bun run mcps-kit base`). The direnv hook does this automatically on `cd`. Eight keys are required for the 7 canonical MCPs:
 
 ```
 TAVILY_API_KEY
@@ -196,7 +196,7 @@ bunx -y ccstatusline@latest
 
 ## Launching the agent
 
-`.mcp.json` (Claude Code) and `opencode.jsonc` ship with `${VAR}` / `{env:VAR}` placeholders — real values live in `.env`. Launch the agent via one of these so env vars actually load:
+`.mcp.json` and `opencode.jsonc` are generated per session by the MCP Builder (`bun run mcps-kit <profile>`). They contain `${VAR}` / `{env:VAR}` placeholders resolved from `.env`. The direnv hook runs `bun run mcps-kit-default` automatically on `cd`, generating the default `base` profile. Launch the agent via one of these so env vars actually load:
 
 ```bash
 # Cross-platform default (uses dotenv-cli, no extra tooling required):

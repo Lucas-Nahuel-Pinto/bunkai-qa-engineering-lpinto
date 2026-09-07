@@ -16,7 +16,7 @@ const MCP_SERVERS = {
   dbhub: ['bunx', '-y', '@bytebase/dbhub@1.2.1', '--config', 'dbhub.toml'],
   context7: ['bunx', '-y', '@upstash/context7-mcp'],
   playwright: ['bunx', '@playwright/mcp@0.0.79', '--caps', 'vision,pdf,testing,tracing,tabs'],
-  tavily: ['bunx', '-y', 'mcp-remote', 'https://mcp.tavily.com/mcp/?tavilyApiKey=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'],
+  tavily: ['bunx', '-y', 'mcp-remote', `https://mcp.tavily.com/mcp/?tavilyApiKey=${process.env.TAVILY_API_KEY}`],
   openapi: ['bunx', '-y', '@ivotoby/openapi-mcp-server', '--tools', 'dynamic'],
 };
 

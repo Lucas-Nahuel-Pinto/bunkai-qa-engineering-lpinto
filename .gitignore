@@ -2,6 +2,17 @@
 # KATA Architecture - .gitignore
 # ====================================
 
+# User preferences (MCP Builder — per-session kit selection)
+.selected-mcps-kit
+
+# MCP Builder output — per-developer generated configs (regenerable via bun run mcps-kit)
+.mcp.json
+opencode.jsonc
+.codex/config.toml
+
+# MCP Builder catalog — holds API keys, never committed
+.mcp.catalog.json
+
 # Dependencies
 node_modules/
 
@@ -41,7 +52,6 @@ node_modules/
 .env
 .env.local
 .env.*.local
-.envrc.local
 .direnv/
 # Force-track .envrc (overrides global ~/.gitignore_global, which often
 # blanket-ignores it). Our .envrc has no secrets — it only sources .env.
@@ -80,11 +90,8 @@ build/
 .template/installer.state.json
 
 # ===== MCP Configuration =====
-# .mcp.json and opencode.jsonc are COMMITTED — they reference secrets via
-# ${VAR} / {env:VAR} expansion. Real values live in .env (ignored above).
-# Local per-developer overrides go in *.local.* files (ignored below).
-.mcp.local.json
-opencode.local.jsonc
+# .mcp.json, opencode.jsonc, .codex/config.toml are GENERATED per session
+# by the MCP Builder (bun run mcps-kit <profile>). Gitignored — safe to overwrite.
 dbhub.local.toml
 # Installer state (cli/install.ts) — gitignored; tracks what bun run setup
 # already did so re-runs are idempotent.

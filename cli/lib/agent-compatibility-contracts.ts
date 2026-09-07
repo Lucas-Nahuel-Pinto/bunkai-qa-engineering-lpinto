@@ -271,9 +271,75 @@ function describeServer(server: NormalizedMcpServer): string {
   return JSON.stringify(server);
 }
 
+function parseCatalog(root: string): Record<string, NormalizedMcpServer> {
+  const catalogPath = join(root, '.mcp.catalog.json');
+  if (!existsSync(catalogPath)) { return {}; }
+  const raw = JSON.parse(readFileSync(catalogPath, 'utf8')) as JsonObject;
+  const servers = object(raw.mcpServers, 'catalog.mcpServers');
+  const result: Record<string, NormalizedMcpServer> = {};
+  for (const [id, def] of Object.entries(servers)) {
+    result[id] = normalizeCatalogEntry(def);
+  }
+  return result;
+}
+
+function normalizeCatalogEntry(def: unknown): NormalizedMcpServer {
+  const entry = object(def, 'catalog entry');
+  const isHttp = entry.type === 'http' || !!entry.url;
+  if (isHttp) {
+    return {
+      transport: 'http',
+      url: stringValue(entry.url, 'catalog url'),
+      env: extractEnvVars(entry),
+      enabled: entry.enabled !== false,
+    };
+  }
+  return {
+    transport: 'stdio',
+    command: stringValue(entry.command, 'catalog command'),
+    args: Array.isArray(entry.args) ? entry.args.map(String) : undefined,
+    env: extractEnvVars(entry),
+    enabled: entry.enabled !== false,
+  };
+}
+
+function extractEnvVars(entry: JsonObject): string[] {
+  const seen = new Set<string>();
+  const env = entry.env;
+  if (env && typeof env === 'object' && !Array.isArray(env)) {
+    for (const val of Object.values(env)) {
+      if (typeof val === 'string') {
+        const m = val.match(/\$\{(\w+)\}/);
+        if (m) { seen.add(m[1]); }
+      }
+    }
+  }
+  if (typeof entry.command === 'string' && /TAVILY_API_KEY/.test(JSON.stringify(entry))) {
+    seen.add('TAVILY_API_KEY');
+  }
+  const headers = entry.headers;
+  if (headers && typeof headers === 'object') {
+    for (const val of Object.values(headers)) {
+      if (typeof val === 'string') {
+        const m = val.match(/\$\{(\w+)\}/);
+        if (m) { seen.add(m[1]); }
+      }
+    }
+  }
+  return [...seen];
+}
+
 export function validateMcpParity(root = process.cwd()): string[] {
   const resolvedRoot = resolve(root);
   const errors: string[] = [];
+
+  const catalog = parseCatalog(resolvedRoot);
+  const catalogIds = Object.keys(catalog).sort();
+  if (catalogIds.length === 0) {
+    errors.push('No .mcp.catalog.json found or catalog is empty.');
+    return errors;
+  }
+
   let configs: Record<Host, NormalizedMcpConfig>;
   try {
     configs = {
@@ -288,16 +354,16 @@ export function validateMcpParity(root = process.cwd()): string[] {
 
   for (const [host, config] of Object.entries(configs) as Array<[Host, NormalizedMcpConfig]>) {
     const actualIds = Object.keys(config).sort();
-    const expectedIds = [...CANONICAL_MCP_IDS].sort();
-    if (JSON.stringify(actualIds) !== JSON.stringify(expectedIds)) {
-      errors.push(`${host} MCP IDs must be exactly: ${CANONICAL_MCP_IDS.join(', ')}; found: ${actualIds.join(', ')}`);
+    const unknown = actualIds.filter(id => !catalogIds.includes(id));
+    if (unknown.length > 0) {
+      errors.push(`${host} has MCPs not in catalog: ${unknown.join(', ')}`);
       continue;
     }
-    for (const id of CANONICAL_MCP_IDS) {
+    for (const id of actualIds) {
       const actual = config[id];
-      const expected = EXPECTED_MCP[id];
+      const expected = catalog[id];
       if (!sameServer(actual, expected)) {
-        errors.push(`${host} MCP ${id} mismatch: expected ${describeServer(expected)}, found ${describeServer(actual)}`);
+        errors.push(`${host} MCP ${id} mismatch vs catalog: expected ${describeServer(expected)}, found ${describeServer(actual)}`);
       }
     }
   }

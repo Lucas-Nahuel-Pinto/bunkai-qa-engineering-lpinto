@@ -1,6 +1,6 @@
 # Skill Registry (auto-generated)
 
-> Generated: `2026-09-04T00:59:23.231Z`
+> Generated: `2026-09-07T07:35:48.597Z`
 > Generator: `bun scripts/build-skill-registry.ts`
 > Protocol: `.agents/skills/agentic-qa-core/references/skill-resolver.md`
 
@@ -240,25 +240,16 @@ Skills indexed: 22
 
 ## Skill: playwright-best-practices
 
-**Purpose**: (no description in frontmatter)
+**Purpose**: Use when writing Playwright tests, fixing flaky tests, debugging failures, implementing Page Object Model, configuring CI/CD, optimizing...
 
 **Compact Rules**:
-- ---
-- name: playwright-best-practices
-- description: Use when writing Playwright tests, fixing flaky tests, debugging failures, implementing Page Object Model, configuring CI/CD, optimizing performance, mocking APIs, handling authentication or OAuth, testing accessibility (axe-core), file uploads/downloads, date/time mocking, WebSockets, geolocation, permissions, multi-tab/popup flows, mobile/responsive layouts, touch gestures, GraphQL, error handling, offline mode, multi-user collaboration, third-party services (payments, email verification), console error monitoring, global setup/teardown, test annotations (skip, fixme, slow), test tags (@smoke, @fast, @critical, filtering with --grep), project dependencies, security testing (XSS, CSRF, auth), performance budgets (Web Vitals, Lighthouse), iframes, component testing, canvas/WebGL, service workers/PWA, test coverage, i18n/localization, Electron apps, or browser extension testing. Covers E2E, component, API, visual, accessibility, security, Electron, and extension testing.
-- license: MIT
-- metadata:
-- author: currents.dev
-- version: "1.1"
-- ---
-- This skill provides comprehensive guidance for all aspects of Playwright test development, from writing new tests to debugging and maintaining existing test suites.
-- Consult these references based on what you're doing:
-- **When to use**: Creating new test files, writing test cases, implementing test scenarios
-- **When to use**: Testing mobile devices, touch interactions, responsive layouts
-- **When to use**: Testing WebSockets, geolocation, permissions, multi-tab flows
-- **When to use**: Test failures, element not found, timeouts, unexpected behavior
-- **When to use**: Testing error states, offline mode, network failures, validation
-- (truncated — read full SKILL.md for the rest)
+- **Run tests**: `npx playwright test --reporter=list`
+- **If tests fail**:
+- Review error output and trace (`npx playwright show-trace`)
+- Fix locators, waits, or assertions
+- Re-run tests
+- **Only proceed when all tests pass**
+- **Run multiple times** for critical tests: `npx playwright test --repeat-each=5`
 
 **Read full SKILL.md when**: the compact rules above are insufficient (e.g. novel scenario, debugging, or the briefing tells you to load the full skill).
 
@@ -268,25 +259,21 @@ Skills indexed: 22
 
 ## Skill: playwright-cli
 
-**Purpose**: (no description in frontmatter)
+**Purpose**: Automate browser interactions, test web pages and work with Playwright tests.
 
 **Compact Rules**:
-- ---
-- name: playwright-cli
-- description: Automate browser interactions, test web pages and work with Playwright tests.
-- allowed-tools: Bash(playwright-cli:*) Bash(npx:*) Bash(npm:*)
-- ---
-- playwright-cli open
-- playwright-cli goto https://playwright.dev
-- playwright-cli click e15
-- playwright-cli type "page.click"
-- playwright-cli press Enter
-- playwright-cli screenshot
-- playwright-cli close
-- playwright-cli open
-- playwright-cli open https://example.com/
-- playwright-cli goto https://playwright.dev
-- (truncated — read full SKILL.md for the rest)
+- Page URL: https://example.com/
+- Page Title: Example Domain
+- **Running and Debugging Playwright tests** [references/playwright-tests.md](references/playwright-tests.md)
+- **Request mocking** [references/request-mocking.md](references/request-mocking.md)
+- **Running Playwright code** [references/running-code.md](references/running-code.md)
+- **Browser session management** [references/session-management.md](references/session-management.md)
+- **Spec-driven testing (plan / generate / heal)** [references/spec-driven-testing.md](references/spec-driven-testing.md)
+- **Storage state (cookies, localStorage)** [references/storage-state.md](references/storage-state.md)
+- **Test generation** [references/test-generation.md](references/test-generation.md)
+- **Tracing** [references/tracing.md](references/tracing.md)
+- **Video recording** [references/video-recording.md](references/video-recording.md)
+- **Inspecting element attributes** [references/element-attributes.md](references/element-attributes.md)
 
 **Read full SKILL.md when**: the compact rules above are insufficient (e.g. novel scenario, debugging, or the briefing tells you to load the full skill).
 
@@ -401,24 +388,24 @@ Skills indexed: 22
 
 ## Skill: resend-cli
 
-**Purpose**: (no description in frontmatter)
+**Purpose**: Operate the Resend platform from the terminal — send emails (including React Email .tsx templates via --react-email), manage domains, con...
 
 **Compact Rules**:
-- ---
-- name: resend-cli
-- description: >
-- Operate the Resend platform from the terminal — send emails (including React Email
-- .tsx templates via --react-email), manage domains, contacts, broadcasts, templates,
-- webhooks, API keys, logs, automations, and events via the `resend` CLI. Use when the
-- user wants to run Resend commands in the shell, scripts, or CI/CD pipelines, or
-- send/preview React Email templates. Always load this skill before running `resend`
-- commands — it contains the non-interactive flag contract and gotchas that prevent
-- silent failures.
-- license: MIT
-- metadata:
-- author: resend
-- version: "2.0.1"
-- homepage: https://resend.com/docs/cli-agents
+- Supply ALL required flags. The CLI will NOT prompt when stdin is not a TTY.
+- Pass `--quiet` (or `-q`) to suppress spinners and status messages.
+- Exit `0` = success, `1` = error.
+- Error JSON goes to stderr, success JSON goes to stdout:
+- Use `--api-key` or `RESEND_API_KEY` env var. Never rely on interactive login.
+- All `delete`/`rm` commands require `--yes` in non-interactive mode.
+- **Sending or reading emails** → [references/emails.md](references/emails.md)
+- **Setting up or verifying a domain** → [references/domains.md](references/domains.md)
+- **Managing API keys** → [references/api-keys.md](references/api-keys.md)
+- **Creating or sending broadcasts** → [references/broadcasts.md](references/broadcasts.md)
+- **Managing contacts, segments, or topics** → [references/contacts.md](references/contacts.md), [references/segments.md](references/segments.md), [references/topics.md](references/topics.md)
+- **Defining contact properties** → [references/contact-properties.md](references/contact-properties.md)
+- **Working with templates** → [references/templates.md](references/templates.md)
+- **Viewing API request logs** → [references/logs.md](references/logs.md)
+- **Creating automations or sending events** → [references/automations.md](references/automations.md)
 - (truncated — read full SKILL.md for the rest)
 
 **Read full SKILL.md when**: the compact rules above are insufficient (e.g. novel scenario, debugging, or the briefing tells you to load the full skill).

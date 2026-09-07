@@ -48,9 +48,9 @@ For strategy B, also need a `.env` loader so the agent process has the vars at s
 - Cross-platform: `bun claude` / `bun opencode` (`dotenv-cli` wrapper in `package.json`)
 - macOS/Linux optional: a `.envrc` with `dotenv_if_exists .env` + `direnv allow`
 
-**Working example**: see `.mcp.json`, `opencode.jsonc`, and `.env.example` in this repo's root.
+**Working example**: see `.mcp.catalog.json` (all available servers) and `.env.example` in this repo's root. The active `.mcp.json` and `opencode.jsonc` are generated per session by the MCP Builder (`bun run mcps-kit <profile>`).
 
-## MCP Servers Included (default — committed in `.mcp.json` / `opencode.jsonc`)
+## MCP Servers Available (generated per session by `bun run mcps-kit`)
 
 | Server         | Type   | Description                                  |
 | -------------- | ------ | -------------------------------------------- |
@@ -122,7 +122,7 @@ Run your agent and verify with:
 ## Security
 
 - **Templates** (this folder) = safe for git, uses `${VAR}` / `{env:VAR}` / `{{VAR}}` placeholders
-- **Active configs** (`.mcp.json`, `opencode.jsonc`) = committed but only reference env vars; secrets live in `.env` (gitignored)
+- **Active configs** (`.mcp.json`, `opencode.jsonc`) = generated per session by MCP Builder; gitignored, only reference env vars; secrets live in `.env` (gitignored)
 
 ## Documentation
 

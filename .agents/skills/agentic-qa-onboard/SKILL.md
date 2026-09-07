@@ -129,7 +129,7 @@ Run the interactive installer once after cloning:
 bun run setup
 ```
 
-This bootstraps `.agents/`, installs the gentle-ai `engram` component (minimal preset), configures the 6 canonical MCPs, downloads Playwright browsers, installs 7 user-level community skills + 3 project-level community skills, and verifies the `${VAR}` placeholders in the committed `.mcp.json` against your `.env`. Full details in [`INSTALLER.md`](../../../INSTALLER.md).
+This bootstraps `.agents/`, installs the gentle-ai `engram` component (minimal preset), configures the 6 canonical MCPs, downloads Playwright browsers, installs 7 user-level community skills + 3 project-level community skills, and verifies the `${VAR}` placeholders in `.mcp.catalog.json` against your `.env`. Full details in [`INSTALLER.md`](../../../INSTALLER.md).
 
 After setup, fill `.env` with the credentials the rest of the workflow expects (see "Critical env vars" below).
 
@@ -234,7 +234,7 @@ The **Atlassian MCP is opt-in** (setup in `docs/mcp/`) — the primary Jira tool
 - Use `/acli` for ticket WRITES (create, transition, comment, link); for detailed READS (custom fields, ACs, ATP/ATR, comments) use `bun run jira:sync-issues get`/`jql`
 - Use **Playwright MCP** for ad-hoc live browser interactions; for scripted runs use `/playwright-cli`
 
-`.mcp.json` lives at the repo root and is **committed** — it is secret-free, referencing secrets as `${VAR}` placeholders resolved from `.env`. Only `.mcp.local.json` (personal overrides) is gitignored.
+`.mcp.json` is **gitignored** and generated per session by the MCP Builder (`bun run mcps-kit <profile>`). The MCP catalog (`.mcp.catalog.json`) lists all available servers.
 
 ---
 
@@ -253,7 +253,7 @@ Place these in `.env` before running anything that talks to a real environment:
 
 `.env` is **gitignored**. Never commit it. `.agents/project.yaml` (committed) holds non-secret context (URLs, project key, environment names); `.env` holds the matching secrets.
 
-`.mcp.json` is **committed** and safe to commit — it never holds a secret value, only `${VAR}` placeholders that Claude Code resolves from `.env` at runtime. Personal overrides go in the gitignored `.mcp.local.json`.
+`.mcp.json` is **gitignored** and generated per session by the MCP Builder — it contains `${VAR}` placeholders resolved from `.env` at runtime.
 
 Verify your config with `bun run vars:check` (should report 0 errors when fully configured).
 

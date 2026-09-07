@@ -1,6 +1,17 @@
 ---
 name: adapt-framework
-description: Adapt this boilerplate's KATA test architecture (tests/, api/schemas/, config/, CI, MCP) to a project already reverse-engineered by `/project-discovery`, so the repo is fully project-specific and ready to write automated tests. Triggers on "adapt KATA to this project", "set up test framework for this project", "implement the test fixtures", "connect boilerplate to target stack", "wire auth for the framework". Idempotent: re-running reports what is still generic vs project-adapted. Strict gate — Phases 0-2 (no writes) → user approval → Phases 3-9 (writes). Modifies THIS repo only, never the target repo. Prerequisites: `.context/` populated by `/project-discovery`. Do NOT use for writing feature tests (`/test-automation`), running suites (`/regression-testing`), or regenerating context (`/project-discovery`).
+description: >-
+  Adapt this boilerplate's KATA test architecture (tests/, api/schemas/, config/, CI, MCP)
+  to a project already reverse-engineered by `/project-discovery`, so the repo is fully
+  project-specific and ready to write automated tests. Triggers on "adapt KATA to this project",
+  "set up test framework for this project", "implement the test fixtures",
+  "connect boilerplate to target stack", "wire auth for the framework".
+  Idempotent: re-running reports what is still generic vs project-adapted.
+  Strict gate — Phases 0-2 (no writes) → user approval → Phases 3-9 (writes).
+  Modifies THIS repo only, never the target repo.
+  Prerequisites: `.context/` populated by `/project-discovery`.
+  Do NOT use for writing feature tests (`/test-automation`), running suites
+  (`/regression-testing`), or regenerating context (`/project-discovery`).
 license: MIT
 compatibility: [claude-code, copilot, cursor, codex, opencode]
 ---
@@ -134,7 +145,7 @@ tests/data/{DataFactory,types}.ts + fixtures/example.json      ← strip hotel/b
 tests/setup/{global,api-auth,ui-auth}.setup.ts
 api/schemas/{auth,example}.types.ts + index.ts                 ← example.types.ts DELETE
 config/variables.ts · config/validateTestEnv.ts · playwright.config.ts
-.agents/project.yaml · .env(.example) · .mcp.json · opencode.jsonc · dbhub.toml · allurerc.mjs
+.agents/project.yaml · .env(.example) · .mcp.catalog.json · dbhub.toml · allurerc.mjs
 .github/workflows/{regression,sanity,smoke,build}.yml · kata-manifest.json
 ```
 
@@ -202,8 +213,8 @@ Ask only what context cannot reveal. Short, specific questions. Group and ask in
 
 **Database + MCP**
 - Does the target have a DB to validate against? `DBHUB_TYPE/HOST/PORT/DATABASE/USER/PASSWORD` per env (drives `dbhub.toml` + `.env`; without these every `[DB_TOOL]` MCP call 401s).
-- For each env, what should `environments.<env>.db_mcp` / `api_mcp` resolve to? Default: the existing single `dbhub` / `openapi` servers. Advanced: per-env named servers must be added to **both** `.mcp.json` and `opencode.jsonc`.
-- Which of Claude Code, OpenCode, and Codex will this project use? Every MCP edit must preserve semantic parity across `.mcp.json`, `opencode.jsonc`, and `.codex/config.toml`, using each harness's native environment syntax. Missing values remain a hard stop under `AGENTS.md` Rule #10.
+- For each env, what should `environments.<env>.db_mcp` / `api_mcp` resolve to? Default: the existing single `dbhub` / `openapi` servers. Advanced: per-env named servers must be added to `.mcp.catalog.json`.
+- Which of Claude Code, OpenCode, and Codex will this project use? Every MCP edit must land in `.mcp.catalog.json` — the builder regenerates all three harness configs. Missing values remain a hard stop under `AGENTS.md` Rule #10.
 
 **CI + reporting + docs**
 - TMS modality + `AUTO_SYNC`: Xray / Jira-native / none, and which GitHub Secrets you can set (these live outside the repo).
@@ -439,7 +450,7 @@ bun run kata:manifest:check    # must exit 0
 
 ### 7.3 MCP registry — THREE-HARNESS sync (highest-risk surface)
 
-`.mcp.json` (Claude Code), `opencode.jsonc` (OpenCode), and `.codex/config.toml` (Codex CLI/Desktop) ship the **same** servers (`context7`, `tavily`, `playwright`, `dbhub`, `openapi`, `postman`). **Every semantic change must land in all three** with native syntax. Per `AGENTS.md` Rule #10, a missing or empty MCP variable is a HARD SESSION STOP, not a soft CI failure.
+`.mcp.catalog.json` holds all available MCP server definitions. The MCP Builder (`bun run mcps-kit <profile>`) generates `.mcp.json` (Claude Code), `opencode.jsonc` (OpenCode), and `.codex/config.toml` (Codex) from the catalog. **Every semantic change must land in the catalog**, then the builder regenerates the configs. Per `AGENTS.md` Rule #10, a missing or empty MCP variable is a HARD SESSION STOP, not a soft CI failure.
 
 - `project.yaml` `environments.<env>.db_mcp` / `api_mcp` resolve to MCP **server names**. Default: point them at the existing `dbhub` / `openapi` servers. If the target needs per-env DB/API servers, add those entries to all three harness configs.
 - `openapi` server reads `API_BASE_URL` / `OPENAPI_SPEC_PATH` ONLY — it is **schema-read-only**, so do NOT inject `API_TOKEN` / `API_HEADERS` (authenticated requests run via curl using `.auth/tokens.env` from `bun run api:login`; canon: `agentic-qa-core/references/api-testing-doctrine.md`). If the target has **no API**, disable/remove the `openapi` entry in all three configs (else it spins against empty env and `[API_TOOL]` breaks).
@@ -505,7 +516,7 @@ Run every detection signal and print a per-subsystem **GENERIC / ADAPTED** table
 | Session reuse | second `test:smoke` does not execute api-setup/ui-setup (and ≥1 test actually ran) |
 | Business context | `grep -l 'placeholder\|Run \`/business-' .context/business/*.md .context/master-test-plan.md` returns nothing |
 | CI workflows | workflow `options:` == env union; secret names match scheme; smoke filter == config grep tag |
-| MCP parity | `db_mcp`/`api_mcp` resolve to server names present in `.mcp.json`, `opencode.jsonc`, and `.codex/config.toml`; `API_BASE_URL`/`OPENAPI_SPEC_PATH` set in `.env` (or `openapi` disabled in all three) |
+| MCP parity | `db_mcp`/`api_mcp` resolve to server names present in `.mcp.catalog.json`; `API_BASE_URL`/`OPENAPI_SPEC_PATH` set in `.env` (or `openapi` disabled in catalog) |
 | dbhub | `DBHUB_*` populated in `.env` if `db_type` set (else `dbhub` MCP disabled in all three harness configs) |
 | allurerc | `allurerc.mjs` `name` != `Agentic QA Boilerplate` |
 | AGENTS.md | resolved auth strategy / first entity / OpenAPI source present (not generic template wording); `CLAUDE.md` remains exactly `@AGENTS.md` |
@@ -539,7 +550,7 @@ Done only when **every** box is true (all map to a Phase 9 signal):
 - [ ] No `Example*` component, `module-example/` spec, or hotel/booking data remains
 - [ ] No component imports `@openapi`; only `api/schemas/` facades do
 - [ ] `.agents/project.yaml` fully populated; `envDataMap` URLs == `project.yaml` env URLs
-- [ ] MCP servers consistent across `.mcp.json` + `opencode.jsonc`; `allurerc.mjs` renamed
+- [ ] MCP servers defined in `.mcp.catalog.json`; `allurerc.mjs` renamed
 - [ ] CI workflow env options + secret names + smoke tag reconciled; GitHub Secrets list emitted
 - [ ] `AGENTS.md` updated, `CLAUDE.md` shim unchanged; `sync-ai-context` handoff done or recommended
 - [ ] `.context/reports/adapt-framework-plan.md` marked `COMPLETED`
@@ -581,7 +592,7 @@ Done only when **every** box is true (all map to a Phase 9 signal):
 - `api-login.ts` does **not** auto-refresh — it mints per run (writes `.auth/api-state.json` for Playwright AND `.auth/tokens.env` + `.auth/tokens.json` for the agentic curl maneuver). Don't document a refresh that doesn't exist. Adapt its PROJECT-SPECIFIC section (`buildAuthPayload` / `extractTokenFromResponse`) to the target — a wrong token shape leaves `.auth/tokens.env` empty and every curl 401s.
 - Golden KATA rule: components import from `@schemas/*`, never `@openapi`. Keep `@openapi` scoped to facades.
 - Steps (Layer 3.5) carry no `@atc` and no fixed assertions — they chain ATCs only.
-- MCP edits preserve three-harness parity across `.mcp.json`, `opencode.jsonc`, and `.codex/config.toml`. Miss one and that harness loses the server or receives empty env → Rule #10 hard stop.
+- MCP edits land in `.mcp.catalog.json`. The builder regenerates `.mcp.json`, `opencode.jsonc`, and `.codex/config.toml`. Miss the catalog and the generated configs stay stale → Rule #10 hard stop.
 - Smoke tag is `@critical`, not `@smoke`. The config grep and the workflows agree on `@critical`; a `@smoke` test selects zero.
 - `CLAUDE.md` is a regular one-line import shim, not a symlink or instruction body.
 - The plan lives in `.context/reports/`, not `.context/PBI/` (Jira-owned cache).

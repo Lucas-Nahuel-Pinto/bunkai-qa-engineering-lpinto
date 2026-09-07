@@ -22,6 +22,7 @@ const FIXTURE_PATHS = [
   '.codex/config.toml',
   '.mcp.json',
   'opencode.jsonc',
+  '.mcp.catalog.json',
 ];
 const temporaryRoots: string[] = [];
 
@@ -33,6 +34,18 @@ function createFixture(prefix = 'agent compatibility '): string {
     const destination = join(root, relativePath);
     mkdirSync(dirname(destination), { recursive: true });
     copyFileSync(source, destination);
+  }
+  // Restore original committed configs (generated ones only have base profile)
+  for (const configPath of ['.mcp.json', 'opencode.jsonc', '.codex/config.toml']) {
+    const result = Bun.spawnSync({
+      cmd: ['git', 'show', `HEAD:${configPath}`],
+      cwd: REPO_ROOT,
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    if (result.exitCode === 0) {
+      writeFileSync(join(root, configPath), result.stdout);
+    }
   }
   return root;
 }
@@ -119,23 +132,11 @@ describe('Codex hook portability', () => {
 });
 
 describe('MCP semantic parity', () => {
-  test('accepts the six canonical servers across all harnesses', () => {
+  test('accepts a subset of catalog servers', () => {
     expect(validateMcpParity(REPO_ROOT)).toEqual([]);
   });
 
-  test('reports a missing Tavily server', () => {
-    const root = createFixture();
-    const configPath = join(root, '.codex/config.toml');
-    const config = readFileSync(configPath, 'utf8').replace(
-      /\n\[mcp_servers\.tavily\][\s\S]*?(?=\n\[mcp_servers\.)/,
-      '\n',
-    );
-    writeFileSync(configPath, config);
-
-    expect(validateMcpParity(root).some(error => error.includes('codex MCP IDs') && error.includes('tavily'))).toBe(true);
-  });
-
-  test('reports an MCP ID mismatch', () => {
+  test('reports an MCP not in catalog', () => {
     const root = createFixture();
     const configPath = join(root, '.mcp.json');
     const config = JSON.parse(readFileSync(configPath, 'utf8'));
@@ -143,7 +144,7 @@ describe('MCP semantic parity', () => {
     delete config.mcpServers.context7;
     writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`);
 
-    expect(validateMcpParity(root).some(error => error.includes('claude MCP IDs') && error.includes('context8'))).toBe(true);
+    expect(validateMcpParity(root).some(error => error.includes('has MCPs not in catalog') && error.includes('context8'))).toBe(true);
   });
 
   test('reports an environment-variable mismatch', () => {
@@ -152,6 +153,6 @@ describe('MCP semantic parity', () => {
     const config = readFileSync(configPath, 'utf8').replace('POSTMAN_API_KEY', 'POSTMAN_TOKEN');
     writeFileSync(configPath, config);
 
-    expect(validateMcpParity(root).some(error => error.includes('opencode MCP postman mismatch') && error.includes('POSTMAN_TOKEN'))).toBe(true);
+    expect(validateMcpParity(root).some(error => error.includes('mismatch vs catalog') && error.includes('POSTMAN_TOKEN'))).toBe(true);
   });
 });

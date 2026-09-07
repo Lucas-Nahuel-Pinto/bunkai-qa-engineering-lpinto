@@ -88,7 +88,9 @@
  * ============================================================================
  */
 
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { execSync } from 'node:child_process';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { join, relative, resolve } from 'node:path';
 import { confirm, input, select } from '@inquirer/prompts';
 import { parse as parseYaml } from 'yaml';
@@ -137,6 +139,151 @@ const log = {
   dim: (msg: string) => err(`${colors.dim}${msg}${colors.reset}`),
   header: (msg: string) => err(`\n${colors.bold}${colors.cyan}${msg}${colors.reset}`),
 };
+
+// ============================================================================
+// DIRENV SETUP — auto-install hook + allow .envrc
+// ============================================================================
+
+type ShellName = 'bash' | 'zsh' | 'pwsh' | 'powershell' | 'unknown';
+
+function detectShell(): ShellName {
+  const shell = process.env.SHELL?.toLowerCase() ?? '';
+  if (shell.includes('zsh')) {
+    return 'zsh';
+  }
+  if (shell.includes('bash')) {
+    return 'bash';
+  }
+  // Windows: check if running inside PowerShell
+  if (process.env.PSModulePath) {
+    return 'pwsh';
+  }
+  return 'unknown';
+}
+
+function getShellConfigPath(shell: ShellName): string | null {
+  const home = homedir();
+  switch (shell) {
+    case 'bash': return join(home, '.bashrc');
+    case 'zsh': return join(home, '.zshrc');
+    case 'pwsh': {
+      // PowerShell profile path
+      try {
+        const profilePath = execSync('powershell -NoProfile -Command "$PROFILE"', {
+          encoding: 'utf8',
+          timeout: 5000,
+        }).trim();
+        return profilePath || null;
+      }
+      catch {
+        return join(home, 'Documents', 'WindowsPowerShell', 'Microsoft.PowerShell_profile.ps1');
+      }
+    }
+    default: return null;
+  }
+}
+
+function isDirenvInstalled(): boolean {
+  try {
+    execSync('direnv --version', { encoding: 'utf8', timeout: 5000, stdio: 'pipe' });
+    return true;
+  }
+  catch {
+    return false;
+  }
+}
+
+function isDirenvHookInstalled(configPath: string, shell: ShellName): boolean {
+  if (!existsSync(configPath)) {
+    return false;
+  }
+  const content = readFileSync(configPath, 'utf8');
+  if (shell === 'pwsh') {
+    return content.includes('direnv hook') || content.includes('Invoke-Expression.*direnv');
+  }
+  return content.includes('direnv hook');
+}
+
+function installDirenvHook(configPath: string, shell: ShellName): void {
+  const hookLine = shell === 'pwsh'
+    ? 'Invoke-Expression ((Invoke-WebRequest -Uri "https://raw.githubusercontent.com/direnv/direnv/master/hook.ps1" -UseBasicParsing).Content)'
+    : `eval "$(direnv hook ${shell})"`;
+
+  const header = '\n# direnv hook — auto-loads .envrc on cd\n';
+
+  // Ensure parent directory exists (e.g. ~/Documents/WindowsPowerShell/)
+  const lastSlash = Math.max(configPath.lastIndexOf('/'), configPath.lastIndexOf('\\'));
+  const dir = lastSlash !== -1 ? configPath.substring(0, lastSlash) : '';
+  if (dir && !existsSync(dir)) {
+    mkdirSync(dir, { recursive: true });
+  }
+
+  const existing = existsSync(configPath) ? readFileSync(configPath, 'utf8') : '';
+  writeFileSync(configPath, `${existing}${header}${hookLine}\n`, 'utf8');
+}
+
+function allowDirenv(): boolean {
+  try {
+    execSync('direnv allow', { cwd: REPO_ROOT, encoding: 'utf8', timeout: 10000, stdio: 'pipe' });
+    return true;
+  }
+  catch {
+    return false;
+  }
+}
+
+async function setupDirenv(): Promise<void> {
+  log.header('[direnv]');
+
+  if (!isDirenvInstalled()) {
+    log.warn('direnv not installed — skipping .envrc auto-load setup.');
+    log.dim('Install: https://direnv.net/#getting-started');
+    log.dim('  Windows: scoop install direnv  OR  winget install direnv');
+    log.dim('  macOS:   brew install direnv');
+    log.dim('  Linux:   apt install direnv  OR  brew install direnv');
+    return;
+  }
+  log.success('direnv found.');
+
+  const shell = detectShell();
+  if (shell === 'unknown') {
+    log.warn('Cannot detect shell — skipping hook installation.');
+    log.dim('Add manually: https://direnv.net/#getting-started');
+    return;
+  }
+  log.info(`Detected shell: ${shell}`);
+
+  const configPath = getShellConfigPath(shell);
+  if (!configPath) {
+    log.warn('Cannot determine shell config file — skipping hook installation.');
+    return;
+  }
+
+  if (isDirenvHookInstalled(configPath, shell)) {
+    log.info(`Hook already installed in ${configPath}`);
+  }
+  else {
+    installDirenvHook(configPath, shell);
+    log.success(`Hook installed in ${configPath}`);
+    log.dim(`Restart your shell or run: source ${configPath}`);
+  }
+
+  const proceed = await confirm({
+    message: 'Run `direnv allow` so the repo\'s .envrc auto-loads .env into your shell?',
+    default: true,
+  });
+  if (!proceed) {
+    log.dim('  Skipped. You can run it later: direnv allow');
+    return;
+  }
+
+  if (allowDirenv()) {
+    log.success(`direnv allow — ${relative(process.cwd(), REPO_ROOT)}/.envrc approved.`);
+  }
+  else {
+    log.warn('direnv allow failed — you may need to run it manually.');
+  }
+}
 
 // ============================================================================
 // FIELD CATALOG — flat fields, env-scoped leaf keys
@@ -1275,6 +1422,8 @@ async function main(): Promise<void> {
     log.warn('Cancelled. No changes saved.');
     process.exit(1);
   });
+
+  await setupDirenv();
 
   const loaded = loadProjectYaml();
 
