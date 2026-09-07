@@ -14,7 +14,6 @@ export const CLAUDE_HOOK_COMMAND = 'node "$CLAUDE_PROJECT_DIR/.agents/hooks/pers
 export const CODEX_HOOK_COMMAND = 'root="$(git rev-parse --show-toplevel)" && node "$root/.agents/hooks/personality-reinject.mjs"';
 export const CODEX_HOOK_COMMAND_WINDOWS = 'powershell.exe -NoProfile -Command "$root = git rev-parse --show-toplevel; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; node (Join-Path $root \'.agents/hooks/personality-reinject.mjs\')"';
 
-type McpId = (typeof CANONICAL_MCP_IDS)[number];
 type Transport = 'stdio' | 'http';
 type Host = 'claude' | 'opencode' | 'codex';
 
@@ -32,59 +31,6 @@ type NormalizedMcpConfig = Record<string, NormalizedMcpServer>;
 interface JsonObject {
   [key: string]: unknown
 }
-
-const EXPECTED_MCP: Record<McpId, NormalizedMcpServer> = {
-  context7: {
-    transport: 'stdio',
-    command: 'npx',
-    args: ['-y', '@upstash/context7-mcp@4.0.3'],
-    env: [],
-    enabled: true,
-  },
-  tavily: {
-    transport: 'http',
-    url: 'https://mcp.tavily.com/mcp/',
-    env: ['TAVILY_API_KEY'],
-    enabled: true,
-  },
-  playwright: {
-    transport: 'stdio',
-    command: 'bunx',
-    args: [
-      '@playwright/mcp@0.0.79',
-      '--caps',
-      'vision,pdf,testing,tracing,tabs',
-      '--timeout-action',
-      '10000',
-      '--timeout-navigation',
-      '30000',
-      '--viewport-size',
-      '1920x1080',
-    ],
-    env: [],
-    enabled: true,
-  },
-  dbhub: {
-    transport: 'stdio',
-    command: 'bunx',
-    args: ['-y', '@bytebase/dbhub@1.2.1', '--config', 'dbhub.toml'],
-    env: [],
-    enabled: true,
-  },
-  openapi: {
-    transport: 'stdio',
-    command: 'bunx',
-    args: ['-y', '@ivotoby/openapi-mcp-server@1.16.1', '--tools', 'dynamic'],
-    env: ['API_BASE_URL', 'OPENAPI_SPEC_PATH'],
-    enabled: true,
-  },
-  postman: {
-    transport: 'http',
-    url: 'https://mcp.postman.com/mcp',
-    env: ['POSTMAN_API_KEY'],
-    enabled: false,
-  },
-};
 
 function object(value: unknown, label: string): JsonObject {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {

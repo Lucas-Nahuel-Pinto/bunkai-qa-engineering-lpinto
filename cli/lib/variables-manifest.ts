@@ -377,6 +377,24 @@ export const VAR_MANIFEST: VarSpec[] = [
     obtainHint: 'your project DB connection — set when adapting the framework.',
     note: 'DBHub MCP password. Local only; sensitive.',
   },
+  {
+    name: 'MCP_FILE',
+    destinations: ['local'],
+    secret: false,
+    required: false,
+    critical: false,
+    obtainHint: 'auto-set by MCP Builder; comma-separated list of generated config files.',
+    note: 'Output files for MCP Builder (e.g. .mcp.json,opencode.jsonc,.codex/config.toml). Local only.',
+  },
+  {
+    name: 'MCP_CATALOG_FILE',
+    destinations: ['local'],
+    secret: false,
+    required: false,
+    critical: false,
+    obtainHint: 'auto-set by MCP Builder; path to MCP catalog.',
+    note: 'MCP catalog file path (.mcp.catalog.json). Local only.',
+  },
 ];
 
 // ----------------------------------------------------------------------------
