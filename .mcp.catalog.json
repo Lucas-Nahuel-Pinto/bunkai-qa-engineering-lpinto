@@ -1,0 +1,53 @@
+{
+  "mcpServers": {
+    "context7": {
+      "command": "bunx",
+      "args": ["-y", "@upstash/context7-mcp@4.0.3"]
+    },
+    "tavily": {
+      "type": "http",
+      "url": "https://mcp.tavily.com/mcp/",
+      "headers": {
+        "Authorization": "Bearer ${TAVILY_API_KEY}"
+      }
+    },
+    "playwright": {
+      "command": "bunx",
+      "args": [
+        "@playwright/mcp@0.0.79",
+        "--caps",
+        "vision,pdf,testing,tracing,tabs",
+        "--timeout-action",
+        "10000",
+        "--timeout-navigation",
+        "30000",
+        "--viewport-size",
+        "1920x1080"
+      ],
+      "enabled": true
+    },
+    "dbhub": {
+      "command": "bunx",
+      "args": ["-y", "@bytebase/dbhub@1.2.1", "--config", "dbhub.toml"],
+      "enabled": true,
+      "timeout": 60000
+    },
+    "openapi": {
+      "command": "bunx",
+      "args": ["-y", "@ivotoby/openapi-mcp-server@1.16.1", "--tools", "dynamic"],
+      "env": {
+        "API_BASE_URL": "${API_BASE_URL}",
+        "OPENAPI_SPEC_PATH": "${OPENAPI_SPEC_PATH}"
+      },
+      "enabled": true
+    },
+    "postman": {
+      "type": "http",
+      "url": "https://mcp.postman.com/mcp",
+      "headers": {
+        "Authorization": "Bearer ${POSTMAN_API_KEY}"
+      },
+      "enabled": true
+    }
+  }
+}
