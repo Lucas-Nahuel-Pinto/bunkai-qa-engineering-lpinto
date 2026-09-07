@@ -92,9 +92,6 @@ export const PROFILES: Record<string, string[] | 'ALL'> = {
   // Database testing: dbhub + docs
   db: ['dbhub', 'context7'],
 
-  // Full stack: browser + API + DB + docs
-  fullstack: ['playwright', 'openapi', 'dbhub', 'context7', 'tavily'],
-
   // Sprint testing: browser + API + DB + docs + search
   sprint: ['playwright', 'openapi', 'dbhub', 'context7', 'tavily'],
 
@@ -439,7 +436,7 @@ export function printUsage(): void {
   console.log('  bun run mcps-kit e2e           # playwright + context7');
   console.log('  bun run mcps-kit api           # openapi + context7 + tavily');
   console.log('  bun run mcps-kit db            # dbhub + context7');
-  console.log('  bun run mcps-kit fullstack     # playwright + openapi + dbhub + context7 + tavily');
+  console.log('  bun run mcps-kit sprint        # playwright + openapi + dbhub + context7 + tavily');
   console.log('  bun run mcps-kit openapi,tavily # MCPs especificos por nombre');
 }
 

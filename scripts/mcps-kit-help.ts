@@ -5,9 +5,18 @@ const BASE_PROFILE = 'base';
 const baseMcps = PROFILES[BASE_PROFILE];
 const desc = Array.isArray(baseMcps) ? baseMcps.join(', ') : 'todos los MCPs';
 
-console.log('\nKit de MCPs\n');
-console.log('1. Ejecuta "bun run mcps-kit" en terminal para abrir el menú interactivo.\n');
-console.log('2. Elige un perfil para cargar únicamente los MCPs necesarios.');
-console.log(`\nPerfil Predeterminado: "${BASE_PROFILE} - (${desc})".\n`);
+const W = 65;
+const line = (s: string) => `│${s.padEnd(W)}│`;
+
+console.log('');
+console.log(`┌${'─'.repeat(W)}┐`);
+console.log(line('  MCPs Kit'));
+console.log(`├${'─'.repeat(W)}┤`);
+console.log(line('  1. "bun run mcps-kit" → menú interactivo'));
+console.log(line('  2. Elegí un perfil para cargar únicamente los MCPs necesarios.'));
+console.log(`├${'─'.repeat(W)}┤`);
+console.log(line(`  Perfil default: ${BASE_PROFILE} (${desc})`));
+console.log(`└${'─'.repeat(W)}┘`);
+console.log('');
 
 process.exit(0);
