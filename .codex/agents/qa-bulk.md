@@ -1,7 +1,7 @@
 ---
 name: qa-bulk
 description: QA mechanical/bulk agent — bulk TC creation, verifiers, CI monitoring, log reading, CLI ops. Use for repetitive/mechanical tasks needing no requirement-level judgment.
-model: opencode-go/mimo-v2.5
+model: openai/gpt-5
 tools: Read, Grep, Glob, Bash, Write, Edit
 ---
 

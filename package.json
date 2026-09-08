@@ -98,7 +98,8 @@
     "agents:compat": "bun scripts/agent-compatibility.ts",
     "agents:compat:check": "bun scripts/agent-compatibility.ts --check",
     "codex": "dotenv -o -e .env -- codex",
-    "qa:model:toggle": "bash scripts/toggle-qa-plan-model.sh"
+    "qa-role:model:select": "bun scripts/qa-model-selector.ts",
+    "qa-role:model:select:help": "bun scripts/qa-model-select-help.ts"
   },
   "dependencies": {
     "@clack/prompts": "^1.4.0",

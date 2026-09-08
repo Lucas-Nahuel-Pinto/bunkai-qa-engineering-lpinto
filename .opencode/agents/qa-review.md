@@ -1,7 +1,7 @@
 ---
 description: QA review agent for code review, KATA compliance, doctrine checking, finding triage, and PR review verdicts. Use when reviewing test code, PRs, or auditing against KATA/test-design/defect-management doctrine. NOT for planning or writing code.
 mode: subagent
-model: opencode-go/kimi-k2.7-code
+model: deepseek-v4-pro
 temperature: 0.1
 permission:
   context7_*: allow

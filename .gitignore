@@ -4,6 +4,7 @@
 
 # User preferences (MCP Builder — per-session kit selection)
 .selected-mcps-kit
+.selected-qa-models
 
 # MCP Builder output — per-developer generated configs (regenerable via bun run mcps-kit)
 .mcp.json

@@ -1,7 +1,7 @@
 ---
 name: qa-code
 description: QA code-generation agent for KATA + Playwright + TypeScript — components, ATCs, test files, Gherkin. Use for writing/refactoring automated test code. NOT for planning or mechanical verification.
-model: opencode-go/deepseek-v4-pro
+model: openai/gpt-5
 tools: Read, Grep, Glob, Bash, Write, Edit
 ---
 

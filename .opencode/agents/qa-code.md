@@ -1,7 +1,7 @@
 ---
 description: QA code-generation agent for KATA + Playwright + TypeScript — Page/Api components, ATCs, test files, Steps modules, framework base classes, Gherkin. Use for writing or refactoring automated test code. NOT for planning or mechanical verification.
 mode: subagent
-model: opencode-go/deepseek-v4-pro
+model: deepseek-v4-pro
 temperature: 0.1
 permission:
   context7_*: allow
