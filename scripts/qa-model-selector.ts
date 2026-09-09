@@ -16,13 +16,12 @@
  * USAGE
  * ============================================================================
  *
- *   bun run qa:model:select                          # interactive (default)
- *   bun run qa:model:select --dry-run                # print changes, do not write
- *   bun run qa:model:select --profile peak           # apply predefined profile
- *   bun run qa:model:select --role qa-plan --model x # set single role
- *   bun run qa:model:select --list                   # list available models
- *   bun run qa:model:select --refresh                # force re-fetch models
- *   bun run qa:model:select --help                   # show help
+ *   bun run qa-role:model:select                          # interactive (default)
+ *   bun run qa-role:model:select --dry-run                # print changes, do not write
+ *   bun run qa-role:model:select --role qa-plan --model x # set single role
+ *   bun run qa-role:model:select --list                   # list available models
+ *   bun run qa-role:model:select --refresh                # force re-fetch models
+ *   bun run qa-role:model:select --help                   # show help
  *
  * ============================================================================
  * ENVIRONMENT VARIABLES
@@ -102,38 +101,20 @@ interface CliFlags {
 type ActiveCli = 'opencode' | 'claude-code' | 'codex';
 
 function detectActiveCli(): ActiveCli {
-  // Check for OpenCode environment variables (highest priority)
+  // Authoritative signal = the env var set by the running CLI. Directory-based
+  // fallbacks are ambiguous: this repo commits .opencode/, .claude/ AND .codex/
+  // simultaneously, so any dir check would always resolve to the first match
+  // regardless of which CLI is actually running.
   if (process.env.OPENCODE === '1' || process.env.OPENCODE_PID) {
     return 'opencode';
   }
-
-  // Check for Claude Code environment variables
   if (process.env.CLAUDE_CODE === '1' || process.env.CLAUDE_CODE_SESSION) {
     return 'claude-code';
   }
-
-  // Check for Codex environment variables
   if (process.env.CODEX === '1' || process.env.CODEX_SESSION) {
     return 'codex';
   }
-
-  // Check for OpenCode config files (opencode.jsonc or .opencode directory)
-  if (existsSync(join(REPO_ROOT, 'opencode.jsonc')) || existsSync(join(REPO_ROOT, '.opencode'))) {
-    return 'opencode';
-  }
-
-  // Check for Claude Code global config (~/.claude/settings.json)
-  const homeDir = process.env.HOME || process.env.USERPROFILE || '';
-  if (homeDir && existsSync(join(homeDir, '.claude', 'settings.json'))) {
-    return 'claude-code';
-  }
-
-  // Check for Codex config
-  if (existsSync(join(REPO_ROOT, '.codex', 'config.toml'))) {
-    return 'codex';
-  }
-
-  // Default to OpenCode
+  // Safe default for this boilerplate.
   return 'opencode';
 }
 
@@ -149,14 +130,25 @@ function filterModelsForCli(models: ModelEntry[], cli: ActiveCli): ModelEntry[] 
   switch (cli) {
     case 'claude-code':
       // Claude Code only supports Anthropic models
-      return models.filter(m => m.id.startsWith('claude'));
+      return models.filter(m => inferUnderlyingProvider(m.id) === 'anthropic');
     case 'codex':
       // Codex only supports OpenAI models
-      return models.filter(m => m.id.startsWith('gpt') || m.id.startsWith('o1') || m.id.startsWith('o3'));
+      return models.filter(m => inferUnderlyingProvider(m.id) === 'openai');
     case 'opencode':
       // OpenCode supports all models
       return models;
   }
+}
+
+function toHarnessModelId(cli: ActiveCli, modelId: string): string {
+  if (cli !== 'claude-code') { return modelId; }
+  // Claude Code agent `model:` uses short aliases (opus/sonnet/haiku), not
+  // catalog IDs like opencode/claude-opus-5. Map by model family.
+  const id = modelId.toLowerCase();
+  if (id.includes('opus')) { return 'opus'; }
+  if (id.includes('sonnet')) { return 'sonnet'; }
+  if (id.includes('haiku')) { return 'haiku'; }
+  return modelId.replace(/^(?:opencode-go|opencode|anthropic)\//, '');
 }
 
 // ============================================================================
@@ -235,10 +227,10 @@ function parseArgs(argv: string[]): CliFlags {
 }
 
 function printHelp(): void {
-  out(`qa-model-selector — select AI models per QA role
+  out(`qa-role:model:select — select AI models per QA role
 
 USAGE:
-  bun run qa:model:select [flags]
+  bun run qa-role:model:select [flags]
 
 FLAGS:
   --dry-run            Print changes without writing files.
@@ -255,9 +247,9 @@ ENVIRONMENT VARIABLES:
   MODELS_CACHE_FILE      Cache file path (default: .models.catalog.json).
 
 EXAMPLES:
-  bun run qa:model:select                    # interactive selector
-  bun run qa:model:select --list             # show available models
-  bun run qa:model:select --role qa-plan --model opencode-go/glm-5.3
+  bun run qa-role:model:select                    # interactive selector
+  bun run qa-role:model:select --list             # show available models
+  bun run qa-role:model:select --role qa-plan --model opencode-go/glm-5.3
 `);
 }
 
@@ -379,7 +371,7 @@ function detectProvider(url: string): string {
 function inferCapabilities(modelId: string): string[] {
   const caps: string[] = [];
   const lower = modelId.toLowerCase();
-  if (lower.includes('vision') || lower.includes('flash')) {
+  if (lower.includes('vision')) {
     caps.push('vision');
   }
   if (lower.includes('code') || lower.includes('coder')) {
@@ -395,7 +387,7 @@ function inferCapabilities(modelId: string): string[] {
 }
 
 function inferUnderlyingProvider(modelId: string): string {
-  const id = modelId.replace(/^(?:opencode-go|opencode)\//, '');
+  const id = modelId.replace(/^(?:opencode-go|opencode|openai|google|anthropic|deepseek|kimi)\//, '');
   if (id.startsWith('claude') || id.startsWith('sonnet') || id.startsWith('opus') || id.startsWith('haiku')) {
     return 'anthropic';
   }
@@ -493,50 +485,6 @@ async function fetchModelsDevMetadata(): Promise<Map<string, ModelsDevInfo>> {
     log.warn(`Failed to fetch models.dev metadata: ${(e as Error).message}`);
   }
   return metaMap;
-}
-
-// Fetch Google models from models.dev (available in /models but not in Zen/Go API)
-async function fetchGoogleModelsFromDev(_metaMap: Map<string, ModelsDevInfo>): Promise<ModelEntry[]> {
-  const models: ModelEntry[] = [];
-  try {
-    const response = await fetch(MODELS_DEV_URL, {
-      headers: { Accept: 'application/json' },
-      signal: AbortSignal.timeout(15000),
-    });
-    if (!response.ok) {
-      return models;
-    }
-    const data = await response.json() as Record<string, unknown>;
-    const google = data.google as Record<string, unknown> | undefined;
-    if (!google || typeof google !== 'object') {
-      return models;
-    }
-    const googleModels = google.models as Record<string, Record<string, unknown>> | undefined;
-    if (!googleModels || typeof googleModels !== 'object') {
-      return models;
-    }
-    for (const [id, model] of Object.entries(googleModels)) {
-      const status = typeof model.status === 'string' ? model.status : 'active';
-      if (status === 'deprecated') {
-        continue;
-      }
-      const name = typeof model.name === 'string' ? model.name : id;
-      models.push({
-        id: `opencode/${id}`,
-        name,
-        provider: 'google',
-        source: MODELS_DEV_URL,
-        capabilities: inferCapabilities(id),
-      });
-    }
-    if (models.length > 0) {
-      log.dim(`  models.dev (google): ${models.length} model(s)`);
-    }
-  }
-  catch {
-    // Silent fail — Google models are optional
-  }
-  return models;
 }
 
 async function fetchFromProvider(url: string, metaMap: Map<string, ModelsDevInfo>): Promise<ModelEntry[]> {
@@ -658,6 +606,12 @@ async function fetchFromProvider(url: string, metaMap: Map<string, ModelsDevInfo
         else if (provider === 'opencode') {
           id = `opencode/${rawId}`;
         }
+        else if (provider === 'deepseek') {
+          id = `deepseek/${rawId}`;
+        }
+        else if (provider === 'kimi') {
+          id = `kimi/${rawId}`;
+        }
         else {
           id = rawId;
         }
@@ -755,16 +709,6 @@ async function fetchModels(forceRefresh = false): Promise<ModelCatalog> {
 // ============================================================================
 // INTERACTIVE SELECTION
 // ============================================================================
-
-function groupByProvider(models: ModelEntry[]): Record<string, ModelEntry[]> {
-  const groups: Record<string, ModelEntry[]> = {};
-  for (const m of models) {
-    const key = m.provider || 'unknown';
-    if (!groups[key]) { groups[key] = []; }
-    groups[key].push(m);
-  }
-  return groups;
-}
 
 async function selectModelForRole(
   role: QaRole,
@@ -885,8 +829,9 @@ async function selectModelForRole(
       }
     }
 
-    // Check if we have any results
-    if (choices.length <= 2) {
+    // Check if we have any results (model choices, not nav separators)
+    const hasResults = filteredZenFreeModels.length > 0 || filteredPaidModels.length > 0;
+    if (!hasResults) {
       log.warn(`No models matching "${filter.trim()}". Showing all models.`);
       continue;
     }
@@ -967,7 +912,7 @@ async function interactiveSelect(
   }
 
   const proceed = await confirm({
-    message: dryRun ? 'Print the assignment?' : 'Save these assignments?',
+    message: dryRun ? 'Show changes? (dry-run — nothing will be written)' : 'Save these assignments?',
     default: true,
   });
 
@@ -1044,9 +989,9 @@ function applyAssignment(
   assignment: Record<QaRole, string>,
   dryRun: boolean,
   partial = false,
-  agentDir?: string,
+  cli: ActiveCli = 'opencode',
 ): { updated: number, skipped: number, files: string[] } {
-  const agentFiles = findAgentFiles(agentDir);
+  const agentFiles = findAgentFiles(getAgentDirForCli(cli));
   let updated = 0;
   let skipped = 0;
   const changedFiles: string[] = [];
@@ -1060,8 +1005,8 @@ function applyAssignment(
       continue;
     }
 
-    const newModel = assignment[role];
-    if (!newModel) {
+    const catalogModel = assignment[role];
+    if (!catalogModel) {
       // In partial mode, skip roles not in the assignment
       if (partial) {
         continue;
@@ -1069,6 +1014,7 @@ function applyAssignment(
       skipped++;
       continue;
     }
+    const newModel = toHarnessModelId(cli, catalogModel);
 
     if (dryRun) {
       const content = readFileSync(file, 'utf8');
@@ -1144,7 +1090,7 @@ async function main(): Promise<void> {
   const catalog = await fetchModels(flags.refresh);
 
   if (catalog.models.length === 0) {
-    log.warn('No models fetched. Using hardcoded defaults.');
+    log.warn('No models fetched. Check your API keys in .env and run --refresh.');
   }
 
   // Filter models based on CLI
@@ -1277,7 +1223,7 @@ async function main(): Promise<void> {
       process.exit(1);
     }
     const singleAssignment = { [role]: flags.model } as Record<QaRole, string>;
-    applyAssignment(singleAssignment, flags.dryRun, true, agentDir);
+    applyAssignment(singleAssignment, flags.dryRun, true, activeCli);
     savePrefs({ ...currentAssignment, [role]: flags.model });
     log.success(flags.dryRun ? 'Dry run complete.' : 'Assignment saved.');
     process.exit(0);
@@ -1294,7 +1240,7 @@ async function main(): Promise<void> {
     process.exit(0);
   }
 
-  applyAssignment(newAssignment, flags.dryRun, false, agentDir);
+  applyAssignment(newAssignment, flags.dryRun, false, activeCli);
   savePrefs(newAssignment);
   log.success(flags.dryRun ? 'Dry run complete.' : 'Assignments saved.');
 }
