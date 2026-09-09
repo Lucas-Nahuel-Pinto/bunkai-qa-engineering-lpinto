@@ -1,7 +1,7 @@
 ---
 description: QA vision agent for screenshot and UI-inspection tasks — reading screenshots to locate visual defects, annotating bug evidence, verifying UI state from images. Use whenever a task must SEE an image.
 mode: subagent
-model: deepseek-v4-flash-vision-exp
+model: deepseek/deepseek-v4-flash-vision-exp
 temperature: 0
 permission:
   context7_*: allow
