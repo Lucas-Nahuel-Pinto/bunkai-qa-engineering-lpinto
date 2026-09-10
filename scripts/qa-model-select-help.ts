@@ -5,7 +5,7 @@ const line = (s: string) => `│${s.padEnd(W)}│`;
 
 console.log('');
 console.log(`┌${'─'.repeat(W)}┐`);
-console.log(line('  AI Model Selector For Each Role'));
+console.log(line('  Selector de Modelos de IA para cada Rol'));
 console.log(`├${'─'.repeat(W)}┤`);
 console.log(line('  1. "bun run qa-role:model:select" → menú interactivo'));
 console.log(line('  2. Seleccioná el rol al que le quieras cambiar el modelo de IA'));

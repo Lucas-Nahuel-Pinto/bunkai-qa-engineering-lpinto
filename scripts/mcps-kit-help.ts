@@ -10,7 +10,7 @@ const line = (s: string) => `│${s.padEnd(W)}│`;
 
 console.log('');
 console.log(`┌${'─'.repeat(W)}┐`);
-console.log(line('  MCPs Kit'));
+console.log(line('  Kit de MCPs'));
 console.log(`├${'─'.repeat(W)}┤`);
 console.log(line('  1. "bun run mcps-kit" → menú interactivo'));
 console.log(line('  2. Elegí un perfil para cargar únicamente los MCPs necesarios.'));

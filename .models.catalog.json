@@ -1933,7 +1933,7 @@
       "capabilities": ["vision"]
     }
   ],
-  "fetchedAt": 1788931585014,
+  "fetchedAt": 1788934976658,
   "sources": [
     "https://opencode.ai/zen/v1/models",
     "https://opencode.ai/zen/go/v1/models",

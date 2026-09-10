@@ -1,0 +1,8 @@
+[
+  { "id": "qa-plan", "description": "Reasoning/analysis — shift-left, test planning, GO/NO-GO" },
+  { "id": "qa-code", "description": "Code generation — KATA, Playwright, TypeScript" },
+  { "id": "qa-review", "description": "Code review — KATA compliance, doctrine checking" },
+  { "id": "qa-bulk", "description": "Mechanical/bulk — TC creation, CI monitoring, CLI ops" },
+  { "id": "qa-write", "description": "Prose — Jira comments, ATR/ATP bodies, reports" },
+  { "id": "qa-vision", "description": "Visual — screenshots, bug annotation, UI inspection" }
+]

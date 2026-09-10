@@ -37,9 +37,11 @@
  * ============================================================================
  */
 
+import type { ModelEntry, ModelsDevInfo } from './qa-model-parsers.ts';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, sep } from 'node:path';
 import { confirm, input, select, Separator } from '@inquirer/prompts';
+import { detectProvider, inferUnderlyingProvider, parseProvider } from './qa-model-parsers.ts';
 
 // ============================================================================
 // CONSTANTS
@@ -47,17 +49,43 @@ import { confirm, input, select, Separator } from '@inquirer/prompts';
 
 const REPO_ROOT = join(import.meta.dir, '..');
 
-const QA_ROLES = ['qa-plan', 'qa-code', 'qa-review', 'qa-bulk', 'qa-write', 'qa-vision'] as const;
-type QaRole = typeof QA_ROLES[number];
+type QaRole = string;
 
-const ROLE_DESCRIPTIONS: Record<QaRole, string> = {
-  'qa-plan': 'Reasoning/analysis — shift-left, test planning, GO/NO-GO',
-  'qa-code': 'Code generation — KATA, Playwright, TypeScript',
-  'qa-review': 'Code review — KATA compliance, doctrine checking',
-  'qa-bulk': 'Mechanical/bulk — TC creation, CI monitoring, CLI ops',
-  'qa-write': 'Prose — Jira comments, ATR/ATP bodies, reports',
-  'qa-vision': 'Visual — screenshots, bug annotation, UI inspection',
-};
+interface QaRoleDef {
+  id: string
+  description: string
+}
+
+const ROLES_FILE = join(REPO_ROOT, '.agents', 'qa-roles.json');
+
+const DEFAULT_ROLE_DEFS: QaRoleDef[] = [
+  { id: 'qa-plan', description: 'Reasoning/analysis — shift-left, test planning, GO/NO-GO' },
+  { id: 'qa-code', description: 'Code generation — KATA, Playwright, TypeScript' },
+  { id: 'qa-review', description: 'Code review — KATA compliance, doctrine checking' },
+  { id: 'qa-bulk', description: 'Mechanical/bulk — TC creation, CI monitoring, CLI ops' },
+  { id: 'qa-write', description: 'Prose — Jira comments, ATR/ATP bodies, reports' },
+  { id: 'qa-vision', description: 'Visual — screenshots, bug annotation, UI inspection' },
+];
+
+// Roles + descriptions are data-driven (.agents/qa-roles.json); the hardcoded
+// list above is only the fallback when the file is missing or malformed.
+function loadRoleDefs(): QaRoleDef[] {
+  try {
+    const data = JSON.parse(readFileSync(ROLES_FILE, 'utf8')) as unknown;
+    if (Array.isArray(data) && data.length > 0) {
+      const defs = data.filter((r): r is QaRoleDef =>
+        typeof (r as QaRoleDef).id === 'string' && typeof (r as QaRoleDef).description === 'string');
+      if (defs.length > 0) { return defs; }
+    }
+  }
+  catch { /* fall through to defaults */ }
+  return DEFAULT_ROLE_DEFS;
+}
+
+const QA_ROLES: string[] = loadRoleDefs().map(r => r.id);
+const ROLE_DESCRIPTIONS: Record<string, string> = Object.fromEntries(
+  loadRoleDefs().map(r => [r.id, r.description]),
+);
 
 const HARNESS_DIRS = [
   '.opencode/agents',
@@ -70,14 +98,6 @@ const PREF_FILE = join(REPO_ROOT, '.selected-qa-models');
 // ============================================================================
 // TYPES
 // ============================================================================
-
-interface ModelEntry {
-  id: string
-  name: string
-  provider: string
-  source: string
-  capabilities: string[]
-}
 
 interface ModelCatalog {
   models: ModelEntry[]
@@ -126,7 +146,7 @@ function getAgentDirForCli(cli: ActiveCli): string {
   }
 }
 
-function filterModelsForCli(models: ModelEntry[], cli: ActiveCli): ModelEntry[] {
+export function filterModelsForCli(models: ModelEntry[], cli: ActiveCli): ModelEntry[] {
   switch (cli) {
     case 'claude-code':
       // Claude Code only supports Anthropic models
@@ -140,7 +160,7 @@ function filterModelsForCli(models: ModelEntry[], cli: ActiveCli): ModelEntry[] 
   }
 }
 
-function toHarnessModelId(cli: ActiveCli, modelId: string): string {
+export function toHarnessModelId(cli: ActiveCli, modelId: string): string {
   if (cli !== 'claude-code') { return modelId; }
   // Claude Code agent `model:` uses short aliases (opus/sonnet/haiku), not
   // catalog IDs like opencode/claude-opus-5. Map by model family.
@@ -291,10 +311,11 @@ function getCatalogUrls(): string[] {
   if (anthropicKey) {
     defaultUrls.push('https://api.anthropic.com/v1/models');
   }
-  // Add OpenAI API if key is available in .env
+  // Add OpenAI API if key is available in .env (honors OPENAI_API_BASE proxy)
   const openaiKey = process.env.OPENAI_API_KEY;
   if (openaiKey) {
-    defaultUrls.push('https://api.openai.com/v1/models');
+    const base = process.env.OPENAI_API_BASE?.replace(/\/+$/, '') ?? 'https://api.openai.com/v1';
+    defaultUrls.push(`${base}/models`);
   }
   // Add DeepSeek API if key is available in .env
   const deepseekKey = process.env.DEEPSEEK_API_KEY;
@@ -334,113 +355,12 @@ function saveCache(catalog: ModelCatalog): void {
   if (!existsSync(dir)) {
     mkdirSync(dir, { recursive: true });
   }
-  writeFileSync(cacheFile, JSON.stringify(catalog, null, 2), 'utf8');
-}
-
-// Provider adapters — normalize different API response formats
-
-function detectProvider(url: string): string {
-  const lower = url.toLowerCase();
-  if (lower.includes('opencode.ai/zen/go')) {
-    return 'opencode-go';
-  }
-  if (lower.includes('opencode.ai/zen') || lower.includes('opencode')) {
-    return 'opencode';
-  }
-  if (lower.includes('generativelanguage.googleapis.com') || lower.includes('google')) {
-    return 'google';
-  }
-  if (lower.includes('api.anthropic.com')) {
-    return 'anthropic';
-  }
-  if (lower.includes('api.openai.com')) {
-    return 'openai-direct';
-  }
-  if (lower.includes('api.deepseek.com')) {
-    return 'deepseek';
-  }
-  if (lower.includes('api.moonshot.cn')) {
-    return 'kimi';
-  }
-  if (lower.includes('openai')) {
-    return 'openai';
-  }
-  return 'custom';
-}
-
-function inferCapabilities(modelId: string): string[] {
-  const caps: string[] = [];
-  const lower = modelId.toLowerCase();
-  if (lower.includes('vision')) {
-    caps.push('vision');
-  }
-  if (lower.includes('code') || lower.includes('coder')) {
-    caps.push('code');
-  }
-  if (lower.includes('pro') || lower.includes('reason')) {
-    caps.push('reasoning');
-  }
-  if (lower.includes('free') || lower.includes('lite') || lower.includes('mini')) {
-    caps.push('budget');
-  }
-  return caps;
-}
-
-function inferUnderlyingProvider(modelId: string): string {
-  const id = modelId.replace(/^(?:opencode-go|opencode|openai|google|anthropic|deepseek|kimi)\//, '');
-  if (id.startsWith('claude') || id.startsWith('sonnet') || id.startsWith('opus') || id.startsWith('haiku')) {
-    return 'anthropic';
-  }
-  if (id.startsWith('gpt') || id.startsWith('o1') || id.startsWith('o3') || id.startsWith('codex')) {
-    return 'openai';
-  }
-  if (id.startsWith('gemini')) {
-    return 'google';
-  }
-  if (id.startsWith('deepseek')) {
-    return 'deepseek';
-  }
-  if (id.startsWith('glm')) {
-    return 'zhipu';
-  }
-  if (id.startsWith('kimi')) {
-    return 'moonshot';
-  }
-  if (id.startsWith('qwen')) {
-    return 'alibaba';
-  }
-  if (id.startsWith('grok')) {
-    return 'xai';
-  }
-  if (id.startsWith('minimax')) {
-    return 'minimax';
-  }
-  if (id.startsWith('nemotron')) {
-    return 'nvidia';
-  }
-  if (id.startsWith('mimo') || id.startsWith('muse') || id.startsWith('ling') || id.startsWith('big-pickle')) {
-    return 'opencode';
-  }
-  if (id.startsWith('hy')) {
-    return 'opencode';
-  }
-  if (id.startsWith('omen')) {
-    return 'opencode';
-  }
-  if (id.startsWith('longcat')) {
-    return 'opencode';
-  }
-  return 'other';
+  writeFileSync(cacheFile, `${JSON.stringify(catalog, null, 2)}\n`, 'utf8');
 }
 
 // models.dev metadata cache — deprecated models are filtered from /models menu
 // and provider info is used for correct assignment
 const MODELS_DEV_URL = 'https://models.dev/api.json';
-
-interface ModelsDevInfo {
-  status: string
-  provider: string
-}
 
 async function fetchModelsDevMetadata(): Promise<Map<string, ModelsDevInfo>> {
   const metaMap = new Map<string, ModelsDevInfo>();
@@ -487,164 +407,64 @@ async function fetchModelsDevMetadata(): Promise<Map<string, ModelsDevInfo>> {
   return metaMap;
 }
 
+function buildAuthHeaders(provider: string): Record<string, string> {
+  const headers: Record<string, string> = { Accept: 'application/json' };
+  const keyMap: Record<string, string | undefined> = {
+    'anthropic': process.env.ANTHROPIC_API_KEY,
+    'openai-direct': process.env.OPENAI_API_KEY,
+    'deepseek': process.env.DEEPSEEK_API_KEY,
+    'kimi': process.env.KIMI_API_KEY,
+  };
+  const key = keyMap[provider];
+  if (!key) { return headers; }
+  if (provider === 'anthropic') {
+    headers['x-api-key'] = key;
+    headers['anthropic-version'] = '2023-06-01';
+  }
+  else {
+    headers.Authorization = `Bearer ${key}`;
+  }
+  return headers;
+}
+
+function buildFetchUrl(provider: string, url: string): string {
+  if (provider === 'google') {
+    const key = process.env.GOOGLE_API_KEY;
+    if (key) { return `${url}?key=${key}`; }
+  }
+  return url;
+}
+
+async function sleep(ms: number): Promise<void> {
+  await new Promise<void>(resolve => setTimeout(resolve, ms));
+}
+
+const FETCH_RETRIES = 2;
+
 async function fetchFromProvider(url: string, metaMap: Map<string, ModelsDevInfo>): Promise<ModelEntry[]> {
+  const provider = detectProvider(url);
   try {
-    const provider = detectProvider(url);
-    // Build headers based on provider
-    const headers: Record<string, string> = { Accept: 'application/json' };
-    let fetchUrl = url;
-    if (provider === 'anthropic') {
-      const key = process.env.ANTHROPIC_API_KEY;
-      if (key) {
-        headers['x-api-key'] = key;
-        headers['anthropic-version'] = '2023-06-01';
-      }
-    }
-    else if (provider === 'openai-direct') {
-      const key = process.env.OPENAI_API_KEY;
-      if (key) {
-        headers.Authorization = `Bearer ${key}`;
-      }
-    }
-    else if (provider === 'deepseek') {
-      const key = process.env.DEEPSEEK_API_KEY;
-      if (key) {
-        headers.Authorization = `Bearer ${key}`;
-      }
-    }
-    else if (provider === 'kimi') {
-      const key = process.env.KIMI_API_KEY;
-      if (key) {
-        headers.Authorization = `Bearer ${key}`;
-      }
-    }
-    else if (provider === 'google') {
-      const key = process.env.GOOGLE_API_KEY;
-      if (key) {
-        fetchUrl = `${url}?key=${key}`;
-      }
-    }
-    const response = await fetch(fetchUrl, {
-      headers,
-      signal: AbortSignal.timeout(10000),
-    });
+    for (let attempt = 0; attempt <= FETCH_RETRIES; attempt++) {
+      const response = await fetch(buildFetchUrl(provider, url), {
+        headers: buildAuthHeaders(provider),
+        signal: AbortSignal.timeout(10000),
+      });
 
-    if (!response.ok) {
-      log.warn(`Provider ${provider} returned ${response.status}`);
-      return [];
-    }
-
-    const data = await response.json() as Record<string, unknown>;
-    const models: ModelEntry[] = [];
-
-    // Anthropic API format: { data: [{ id, type, ... }] }
-    if (provider === 'anthropic' && Array.isArray(data.data)) {
-      for (const m of data.data as Record<string, unknown>[]) {
-        if (typeof m.id !== 'string') {
-          continue;
-        }
-        models.push({
-          id: `anthropic/${m.id}`,
-          name: typeof m.display_name === 'string' ? m.display_name : m.id,
-          provider: 'anthropic',
-          source: url,
-          capabilities: inferCapabilities(m.id),
-        });
+      // Retry on rate-limit (429) and transient server errors (5xx) with backoff.
+      if ((response.status === 429 || response.status >= 500) && attempt < FETCH_RETRIES) {
+        await sleep(500 * 2 ** attempt);
+        continue;
       }
-      return models;
-    }
-
-    // OpenAI API format: { data: [{ id, owned_by, ... }] }
-    if (provider === 'openai-direct' && Array.isArray(data.data)) {
-      for (const m of data.data as Record<string, unknown>[]) {
-        if (typeof m.id !== 'string') {
-          continue;
-        }
-        models.push({
-          id: `openai/${m.id}`,
-          name: typeof m.name === 'string' ? m.name : m.id,
-          provider: 'openai',
-          source: url,
-          capabilities: inferCapabilities(m.id),
-        });
+      if (!response.ok) {
+        log.warn(`Provider ${provider} returned ${response.status}`);
+        return [];
       }
-      return models;
-    }
 
-    // Google Gemini API format: { models: [{ name: "models/...", displayName, ... }] }
-    if (provider === 'google' && Array.isArray(data.models)) {
-      for (const m of data.models as Record<string, unknown>[]) {
-        const name = typeof m.name === 'string' ? m.name : '';
-        const rawId = name.replace('models/', '');
-        if (!rawId) {
-          continue;
-        }
-        const displayName = typeof m.displayName === 'string' ? m.displayName : rawId;
-        models.push({
-          id: `google/${rawId}`,
-          name: displayName,
-          provider: 'google',
-          source: url,
-          capabilities: inferCapabilities(rawId),
-        });
-      }
-      return models;
+      const data = await response.json() as unknown;
+      return parseProvider(provider, data, url, metaMap);
     }
-
-    // OpenAI-compatible format: { data: [{ id, owned_by, ... }] }
-    if (Array.isArray(data.data)) {
-      for (const m of data.data as Record<string, unknown>[]) {
-        if (typeof m.id !== 'string') {
-          continue;
-        }
-        const rawId = m.id;
-        // Add provider prefix to match agent file format
-        let id: string;
-        if (provider === 'opencode-go') {
-          id = `opencode-go/${rawId}`;
-        }
-        else if (provider === 'opencode') {
-          id = `opencode/${rawId}`;
-        }
-        else if (provider === 'deepseek') {
-          id = `deepseek/${rawId}`;
-        }
-        else if (provider === 'kimi') {
-          id = `kimi/${rawId}`;
-        }
-        else {
-          id = rawId;
-        }
-        const name = typeof m.name === 'string' ? m.name : rawId;
-        // Use models.dev provider info if available (more accurate than owned_by)
-        const meta = metaMap.get(rawId);
-        const modelProvider = meta?.provider || (typeof m.owned_by === 'string' ? m.owned_by : provider);
-        models.push({
-          id,
-          name,
-          provider: modelProvider,
-          source: url,
-          capabilities: inferCapabilities(rawId),
-        });
-      }
-    }
-    // Custom flat format: [{ id, name, ... }]
-    else if (Array.isArray(data)) {
-      for (const m of data as Record<string, unknown>[]) {
-        if (typeof m.id !== 'string') {
-          continue;
-        }
-        models.push({
-          id: m.id,
-          name: typeof m.name === 'string' ? m.name : m.id,
-          provider: typeof m.provider === 'string' ? m.provider : provider,
-          source: url,
-          capabilities: Array.isArray(m.capabilities) ? m.capabilities as string[] : inferCapabilities(m.id),
-        });
-      }
-    }
-
-    return models;
+    log.warn(`Provider ${provider} exhausted retries`);
+    return [];
   }
   catch (e) {
     log.warn(`Failed to fetch from ${url}: ${(e as Error).message}`);
@@ -666,12 +486,13 @@ async function fetchModels(forceRefresh = false): Promise<ModelCatalog> {
   // Fetch models.dev metadata to filter deprecated models and get provider info
   const metaMap = await fetchModelsDevMetadata();
 
-  const allModels: ModelEntry[] = [];
-  for (const url of urls) {
+  // Fetch all providers in parallel; each returns [] on failure (never throws).
+  const results = await Promise.all(urls.map(async (url) => {
     const models = await fetchFromProvider(url, metaMap);
-    allModels.push(...models);
     log.dim(`  ${detectProvider(url)}: ${models.length} model(s)`);
-  }
+    return models;
+  }));
+  const allModels: ModelEntry[] = results.flat();
 
   // Dedupe by ID
   const seen = new Set<string>();
@@ -894,7 +715,7 @@ async function interactiveSelect(
     }
 
     // Edit the selected role
-    const role = selected as QaRole;
+    const role = selected;
     const current = newAssignment[role];
     const newModel = await selectModelForRole(role, models, current);
     // null means user went back, so we skip the update
@@ -1056,7 +877,7 @@ function loadPrefs(): Record<QaRole, string> | null {
     for (const role of QA_ROLES) {
       if (data[role]) { result[role] = data[role]; }
     }
-    return Object.keys(result).length > 0 ? result as Record<QaRole, string> : null;
+    return Object.keys(result).length > 0 ? result : null;
   }
   catch {
     return null;
@@ -1201,23 +1022,26 @@ async function main(): Promise<void> {
 
   // Validate assigned models against available models
   const availableModelIds = new Set(availableModels.map(m => m.id));
-  const invalidRoles: QaRole[] = [];
+  const orphaned: { role: QaRole, model: string }[] = [];
   for (const role of QA_ROLES) {
     const assigned = currentAssignment[role];
     if (assigned && !availableModelIds.has(assigned)) {
-      invalidRoles.push(role);
-      log.warn(`Model "${assigned}" for ${role} no longer available in ${activeCli}`);
+      orphaned.push({ role, model: assigned });
       delete currentAssignment[role];
     }
   }
 
-  if (invalidRoles.length > 0) {
-    log.info(`${invalidRoles.length} role(s) have invalid models. Re-select in interactive mode.`);
+  if (orphaned.length > 0) {
+    log.warn(`Orphaned model(s) — no longer available in ${activeCli}:`);
+    for (const o of orphaned) {
+      log.warn(`  ${o.role}: ${o.model}`);
+    }
+    log.info('Re-select them with: bun run qa-role:model:select');
   }
 
   // Non-interactive: single role + model
   if (flags.role && flags.model) {
-    const role = flags.role as QaRole;
+    const role = flags.role;
     if (!QA_ROLES.includes(role)) {
       log.error(`Invalid role: ${role}. Valid: ${QA_ROLES.join(', ')}`);
       process.exit(1);
